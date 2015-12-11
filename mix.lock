@@ -1,0 +1,3 @@
+%{"message_pack": {:git, "https://github.com/awetzel/msgpack-elixir.git", "1fd6cebc501a77754e409e39b9b78648e13127c4", [branch: "unpack_map_as_map"]},
+  "neovim": {:git, "https://github.com/awetzel/neovim-elixir.git", "de60c2de00063e0cd23dd64c92f91dda1b1b2591", []},
+  "procket": {:git, "https://github.com/msantos/procket.git", "28d18658b3e9fe41aaeab3852dd0f5e108ab4838", []}}
