@@ -18,6 +18,9 @@ defmodule MixAndComplete do
         Mix.Task.run("loadconfig", [mix_dir<>"/config/config.exs"])
       :file.set_cwd('#{mix_dir}') # if your application read files
       for p<-Path.wildcard("#{mix_dir}/_build/#{Mix.env}/lib/*/ebin"), do: :code.add_pathz('#{p}')
+      for f<-Path.wildcard("#{mix_dir}/_build/#{Mix.env}/lib/*/ebin/*.app"),{:ok,[{:application,_,app}]}=:file.consult(to_char_list f),mod<-app[:modules] do
+        Code.ensure_loaded(mod)
+      end
     else
       Logger.info("Cannot find any mix project in parent dirs")
     end
