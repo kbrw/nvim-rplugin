@@ -84,7 +84,7 @@ defmodule MixAndComplete do
     {:ok,nil,%{state| current_bindings: bindings}}
   end
 
-  deffunc elixir_complete("1",_,cursor,line,state), eval: "col('.')", eval: "getline('.')" do
+  deffunc elixir_complete(1,_,cursor,line,state), eval: "col('.')", eval: "getline('.')" do
     cursor = cursor - 1 # because we are in insert mode
     [tomatch] = Regex.run(~r"[\w\.:]*$",String.slice(line,0..cursor-1))
     cursor - String.length(tomatch)
