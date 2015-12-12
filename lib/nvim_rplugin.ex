@@ -14,7 +14,7 @@ defmodule MixAndComplete do
       else
         Logger.info("Load project #{Mix.Project.config[:app]}")
       end
-      if File.exists?(mix_dir<>"/config/config.exs"), do: 
+      if File.exists?(mix_dir<>"/config/config.exs"), do:
         Mix.Task.run("loadconfig", [mix_dir<>"/config/config.exs"])
       :file.set_cwd('#{mix_dir}') # if your application read files
       for p<-Path.wildcard("#{mix_dir}/_build/#{Mix.env}/lib/*/ebin"), do: :code.add_pathz('#{p}')
@@ -27,7 +27,7 @@ defmodule MixAndComplete do
   end
 
   defp format_bindings(bindings) do
-    bindings |> Enum.map(fn {k,v}->"#{k} = #{inspect(v,pretty: true)}" end) |> Enum.join("\n")
+    bindings |> Enum.map(fn {k,v}->"#{k} = #{inspect(v,pretty: true, limit: :infinity)}" end) |> Enum.join("\n")
   end
 
   defp add_specs(specs,{f,a},doc) do
@@ -72,10 +72,10 @@ defmodule MixAndComplete do
     current_bindings = if bang == 0, do: state.current_bindings, else: []
     bindings = try do
       {res,bindings} = Code.eval_string(Enum.join(text,"\n"),current_bindings)
-      File.write!("#{tmp_dir}/preview.ex","#{inspect(res,pretty: true)}\n\n#{format_bindings bindings}")
+      File.write!("#{tmp_dir}/preview.ex","#{inspect(res,pretty: true, limit: :infinity)}\n\n#{format_bindings bindings}")
       bindings
     catch
-      kind,err-> 
+      kind,err->
         format_err = Exception.format(kind,err,System.stacktrace)
         File.write! "#{tmp_dir}/preview.ex","#{format_err}\n\n#{format_bindings current_bindings}"
         current_bindings
