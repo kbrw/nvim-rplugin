@@ -84,6 +84,36 @@ defmodule MixAndComplete do
     {:ok,nil,%{state| current_bindings: bindings}}
   end
 
+  def get_doc(query) do
+    case String.split(query,".") do
+      [":"<>erlmod|_rest]-> 
+        :os.cmd('erl -man #{erlmod} | col -b') |> to_string
+      [<<c>><>_] when c in ?a..?z-> get_doc("Kernel.#{query}")
+      parts->
+        if Enum.all?(parts, &match?(<<c>><>_ when c in ?A..?Z,&1)) do
+          mod = Module.concat(parts)
+          case Code.get_docs(mod, :moduledoc) do
+            {_,doc}-> "## Module #{inspect mod}\n\n#{doc}"
+            nil->""
+          end
+        else
+          mod = parts |> Enum.slice(0..-2) |> Module.concat
+          fun = parts |> List.last |> String.to_atom
+          Enum.find_value(Code.get_docs(mod, :docs),fn
+            {{afun,arity},_,type,spec,doc} when afun == fun->
+              "## Function #{Macro.to_string({fun,[],spec})}\n\n#{doc}"
+             _->nil
+          end) |> to_string
+        end
+    end
+  end
+
+  deffunc docex_get_body(_q,cursor,line,state), eval: "col('.')", eval: "getline('.')" do
+    [start_query] = Regex.run(~r"[\w\.:]*$",String.slice(line,0..cursor-1))
+    [end_query] = Regex.run(~r"^\w*",String.slice(line,cursor..-1))
+    get_doc(start_query <> end_query)
+  end
+
   deffunc elixir_complete("1",_,cursor,line,state), eval: "col('.')", eval: "getline('.')" do
     cursor = cursor - 1 # because we are in insert mode
     [tomatch] = Regex.run(~r"[\w\.:]*$",String.slice(line,0..cursor-1))
