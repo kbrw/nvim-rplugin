@@ -45,7 +45,7 @@ defmodule RPlugin do
 
   deffunc docex_get_body(_q,cursor,line,state), eval: "col('.')", eval: "getline('.')" do
     [start_query] = Regex.run(~r"[\w\.:]*$",String.slice(line,0..cursor-1))
-    [end_query] = Regex.run(~r"^\w*",String.slice(line,cursor..-1))
+    [end_query] = Regex.run(~r"^[\w!?]*",String.slice(line,cursor..-1))
     Doc.get(start_query <> end_query) |> to_string
   end
 
