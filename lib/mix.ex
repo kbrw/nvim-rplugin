@@ -1,6 +1,6 @@
 defmodule RPlugin.Mix do
   require Logger
-  defp mix_load("/"<>path) do
+  def mix_load("/"<>path) do
     mix_dir = path |> Path.split |> Enum.reduce([""],&["#{hd(&2)}/#{&1}"|&2])
                    |> Enum.reverse |> Enum.find(&File.exists?("#{&1}/mix.exs"))
     if mix_dir do

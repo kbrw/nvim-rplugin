@@ -21,7 +21,7 @@ defmodule RPlugin do
   end
 
   defcommand mix_load(file_dir,state), eval: "expand('%:p:h')", async: true do
-    RPlugin.mix_load(file_dir)
+    RPlugin.Mix.mix_load(file_dir)
   end
 
   defcommand elixir_exec(bang,[starts,ends],state), bang: true, range: :default_all do
