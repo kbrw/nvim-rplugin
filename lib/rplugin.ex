@@ -37,17 +37,18 @@ defmodule RPlugin do
     {:ok,text} = NVim.buffer_get_line_slice(buffer,starts-1,ends-1,true,true)
     tmp_dir = System.tmp_dir || "."
     current_bindings = if bang == 0, do: state.current_bindings, else: []
+    random_name = :crypto.hash(:md5,:erlang.term_to_binary(:os.timestamp)) |> Base.encode16 |> String.slice(0..10)
     bindings = try do
       {res,bindings} = Code.eval_string(Enum.join(text,"\n"),current_bindings, env)
-      File.write!("#{tmp_dir}/preview.ex","#{inspect(res,pretty: true, limit: :infinity)}\n\n#{format_bindings bindings}")
+      File.write!("#{tmp_dir}/#{random_name}.ex","#{inspect(res,pretty: true, limit: :infinity)}\n\n#{format_bindings bindings}")
       bindings
     catch
       kind,err->
         format_err = Exception.format(kind,err,System.stacktrace)
-        File.write! "#{tmp_dir}/preview.ex","#{format_err}\n\n#{format_bindings current_bindings}"
+        File.write! "#{tmp_dir}/#{random_name}.ex","#{format_err}\n\n#{format_bindings current_bindings}"
         current_bindings
     end
-    NVim.vim_command("pedit! #{tmp_dir}/preview.ex")
+    NVim.vim_command("pedit! #{tmp_dir}/#{random_name}.ex")
     {:ok,nil,%{state| current_bindings: bindings}}
   end
 
