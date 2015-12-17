@@ -1,5 +1,4 @@
 defmodule RPlugin.Doc do
-
   def get({:q_doc,env,query}) do
     case String.split(query,".") do
       [<<c>><>_]=q when c in ?a..?z->

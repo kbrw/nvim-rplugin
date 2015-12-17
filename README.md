@@ -18,6 +18,8 @@ thanks @archSeer for the gif !
   then the completion and the documentation function will understand
   the context: aliases, imports, use, etc., this function compile the
   file and use your CPU, use automd on vim to execute it when you want.
+- The `:ElixirBuildenv` background compilation can trigger error
+  highlighting and log into vim to help your debugging.
 
 # Installation
 
@@ -35,10 +37,16 @@ cp nvim_rplugin-0.0.1.ez ~/.config/nvim/rplugin/elixir/
 
 # Configuration
 
-Two possible configurations for the completion function:
+Four possible configurations:
 
 - `g:elixir_maxmenu` is an integer giving the max length of the function doc
   preview in omni completion, default to 70
 - `g:elixir_docpreview` is a boolean (int 0 or 1) to choose if you
   want the completion function to open doc in preview window or not,
   default to 0.
+- `g:elixir_showerror` is a boolean (int 0 or 1) to choose if you
+  want the highlight the errorneous line and log the error into vim
+  during `:ElixirBuildenv` compilation.
+- `g:elixir_gotoerror` is a boolean (int 0 or 1) to choose if you
+  want the vim cursor to go to the error line, when `:ElixirBuildenv`
+  compilation fail.

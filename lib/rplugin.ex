@@ -27,7 +27,7 @@ defmodule RPlugin do
   defcommand elixir_buildenv(ends,cur_file,state), eval: "line('$')", eval: "expand('%:p:h')", async: true do
     {:ok,buffer} = NVim.vim_get_current_buffer
     {:ok,text} = NVim.buffer_get_line_slice(buffer,0,ends-1,true,true)
-    envs = RPlugin.Env.env_map(Enum.join(text,"\n"))
+    envs = RPlugin.Env.env_map(Enum.join(text,"\n"),cur_file)
     {:ok,nil,%{state|file_envs: Dict.put(state.file_envs,cur_file,envs)}}
   end
 

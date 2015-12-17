@@ -11,12 +11,28 @@ defmodule RPlugin.Env.FakeKernel do
 end
 
 defmodule RPlugin.Env do
-  def env_map(code) do
+  require Logger
+  def env_map(code,cur_file) do
     import Kernel, except: [defmodule: 2]
     import RPlugin.Env.FakeKernel
-    try do
-      Code.eval_string(code,[],%{__ENV__|module: Elixir,function: nil,line: 1})
-    catch _,_->:ok end
+    res = try do
+      Code.eval_string(code,[],%{__ENV__|module: Elixir,function: nil,line: 1}); :ok
+    catch
+      :error,%{description: desc, line: line}-> {:error,desc,line}
+      type,error-> {:error,inspect({type,error}),
+                      Enum.find_value(System.stacktrace,fn {_,_,_,metas}->metas[:line] end)}
+    end
+    if match?({:ok,1},NVim.vim_get_var("elixir_showerror")) do
+      case res do
+        :ok-> NVim.vim_command("for m in getmatches() | call matchdelete(m.id) | endfor")
+        {:error,desc,nil}-> Logger.error(desc)
+        {:error,desc,line}->
+          Logger.warn("#{desc} (L#{line})")
+          NVim.vim_call_function("matchaddpos",["SpellBad",[[line,1,2]],999])
+          if match?({:ok,1},NVim.vim_get_var("elixir_gotoerror")), do:
+            NVim.vim_call_function("cursor",[line,0])
+      end
+    end
     get_envs([]) |> Enum.sort_by(fn {{starts,ends},env}->ends-starts end)
   end
 
@@ -28,6 +44,6 @@ defmodule RPlugin.Env do
   end
 
   def get_envs(acc) do
-    receive do env->get_envs([env|acc]) after 0->acc end
+    receive do {{_,_},%{}}=env->get_envs([env|acc]) after 0->acc end
   end
 end
