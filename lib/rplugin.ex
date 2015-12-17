@@ -50,15 +50,13 @@ defmodule RPlugin do
   end
 
   deffunc elixir_complete(mode,_,cursor,line,_,_,state) when mode in ["1",1], eval: "col('.')", eval: "getline('.')",
-      eval: "exists('g:elixir_docpreview') ? g:elixir_docpreview : 0",
-      eval: "exists('g:elixir_maxmenu') ? g:elixir_maxmenu : 70" do
+      eval: "get(g:,'elixir_docpreview',0)", eval: "get(g:,'elixir_maxmenu',70)" do
     cursor = cursor - 1 # because we are in insert mode
     [tomatch] = Regex.run(~r"[\w\.:]*$",String.slice(line,0..cursor-1))
     cursor - String.length(tomatch)
   end
   deffunc elixir_complete(_,base,_,_,preview?,maxmenu,state), eval: "col('.')", eval: "getline('.')",
-      eval: "exists('g:elixir_docpreview') ? g:elixir_docpreview : 0",
-      eval: "exists('g:elixir_maxmenu') ? g:elixir_maxmenu : 70" do
+      eval: "get(g:,'elixir_docpreview',0)", eval: "get(g:,'elixir_maxmenu',70)" do
     case (base |> to_char_list |> Enum.reverse |> IEx.Autocomplete.expand) do
       {:no,_,_}-> [base] # no expand
       {:yes,comp,[]}->["#{base}#{comp}"] #simple expand, no choices
