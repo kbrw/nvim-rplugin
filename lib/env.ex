@@ -29,8 +29,6 @@ defmodule RPlugin.Env do
         {:error,desc,line}->
           Logger.warn("#{desc} (L#{line})")
           NVim.vim_call_function("matchaddpos",["SpellBad",[[line,1,2]],999])
-          if match?({:ok,1},NVim.vim_get_var("elixir_gotoerror")), do:
-            NVim.vim_call_function("cursor",[line,0])
       end
     end
     get_envs([]) |> Enum.sort_by(fn {{starts,ends},env}->ends-starts end)

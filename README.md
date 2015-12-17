@@ -45,8 +45,5 @@ Four possible configurations:
   want the completion function to open doc in preview window or not,
   default to 0.
 - `g:elixir_showerror` is a boolean (int 0 or 1) to choose if you
-  want the highlight the errorneous line and log the error into vim
+  want to highlight the errorneous line and log the error into vim
   during `:ElixirBuildenv` compilation.
-- `g:elixir_gotoerror` is a boolean (int 0 or 1) to choose if you
-  want the vim cursor to go to the error line, when `:ElixirBuildenv`
-  compilation fail.
