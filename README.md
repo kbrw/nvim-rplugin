@@ -1,4 +1,4 @@
-# NvimRplugin
+# NvimRplugin: Elixir Contextual (really) completion and doc
 
 ![autocomplete](autocomplete.gif)
 thanks @archSeer for the gif !
@@ -13,10 +13,18 @@ thanks @archSeer for the gif !
 - Bindings are kept along interpretations
 - You can reset binding using the bang: `:ElixirExec!`
 - Add a function `ExdocGetBody` to get documentation under cursor
+- Add a command `:ElixirBuildenv` which parse the current buffer to
+  maintain a map of line-> `__ENV__`, once this command is executed,
+  then the completion and the documentation function will understand
+  the context: aliases, imports, use, etc., this function compile the
+  file and use your CPU, use automd on vim to execute it when you want.
 
 # Installation
 
-Install neovim elixir host (see https://github.com/awetzel/neovim-elixir)
+Use directly the nvim packages https://github.com/awetzel/elixir.nvim
+which includes this plugin.
+
+Otherwise install neovim elixir host (see https://github.com/awetzel/neovim-elixir)
 then compile your plugin as an archive and put the archive in the
 `rplugin/elixir` directory of your neovim configuration.
 

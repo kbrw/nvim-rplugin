@@ -1,19 +1,43 @@
 defmodule RPlugin.Doc do
-  def get(query) when is_binary(query), do: get(String.split(query,"."))
-  def get([<<c>><>_]=q) when c in ?a..?z, do: get(["Kernel"|q])
-  def get([":"<>erlmod|_rest]), do: get(:erldoc,erlmod)
-  def get(query) when is_list(query) do
-    if Enum.all?(query, &match?(<<c>><>_ when c in ?A..?Z,&1)) do
-      get(:moduledoc,Module.concat(query))
-    else
-      get(:fundoc,{(query|>Enum.slice(0..-2)|>Module.concat), :"#{List.last query}"})
+
+  def get({:q_doc,env,query}) do
+    case String.split(query,".") do
+      [<<c>><>_]=q when c in ?a..?z->
+        q = :"#{q}"
+        case for({mod,funs}<-env.functions, {fun,_}<-funs, fun == q, do: {mod,fun}) do
+          []->
+            case for({mod,funs}<-env.macros, {fun,_}<-funs, fun == q, do: {mod,fun}) do
+              []->get({:fundoc,{env.module,q}})
+              [{mod,fun}|_]->get({:fundoc,{mod,fun}})
+            end
+          [{mod,fun}|_]->get({:fundoc,{mod,fun}})
+        end
+      [":"<>erlmod|_rest]->get({:erldoc,erlmod})
+      parts->
+        if Enum.all?(parts, &match?(<<c>><>_ when c in ?A..?Z,&1)) do
+          mod = resolve_alias(parts,env)
+          get(if match?("Elixir."<>_,"#{mod}"), 
+                    do: {:moduledoc,mod}, else: {:erldoc,mod})
+        else
+          mod = resolve_alias(Enum.slice(parts,0..-2),env)
+          get(if match?("Elixir."<>_,"#{mod}"), 
+                    do: {:fundoc,{mod, :"#{List.last parts}"}}, else: {:erldoc,mod})
+        end
     end
   end
 
-  def get(:erldoc,erlmod) do
+  def get({:q_fun_preview,env,{mod,fun,arity}}) do
+    mod = resolve_alias([String.rstrip(mod,?.)],env)
+    get({:fun_preview,{mod,:"#{fun}",String.to_integer(arity)}})
+  end
+  def get({:q_mod_preview,env,mod}) do
+    get({:mod_preview,resolve_alias([mod],env)})
+  end
+
+  def get({:erldoc,erlmod}) do
     :os.cmd('erl -man #{erlmod} | col -b') |> to_string
   end
-  def get(:moduleinfo,{type,mod}) when type in [:functions,:macros] do
+  def get({:moduleinfo,{type,mod}}) when type in [:functions,:macros] do
     case mod.__info__(type) do
       []->nil
       funs->
@@ -23,7 +47,7 @@ defmodule RPlugin.Doc do
         "## #{type |> to_string |> String.capitalize}\n\n#{fun_list}"
     end
   end
-  def get(:typespecs,mod) do
+  def get({:typespecs,mod}) do
     case Kernel.Typespec.beam_types(mod) do
       []->nil
       types->
@@ -33,7 +57,7 @@ defmodule RPlugin.Doc do
         "## Types\n\n#{type_list}"
     end
   end
-  def get(:funspecs,{mod,{f,a}}) do
+  def get({:funspecs,{mod,{f,a}}}) do
     all_specs = Kernel.Typespec.beam_specs(mod)
     fun_specs = for {{f0,a0},specs}<-all_specs, {f0,a0}=={f,a}, spec<-specs, do: spec
     case fun_specs do
@@ -45,30 +69,24 @@ defmodule RPlugin.Doc do
         "## Specs\n\n#{spec_lines}"
     end
   end
-  def get(:moduledoc,mod) do
+  def get({:moduledoc,mod}) do
     if moddoc=Code.get_docs(mod,:moduledoc) do
-      ["# Module #{inspect mod}",elem(moddoc,1),get(:moduleinfo,{:functions,mod}),get(:moduleinfo,{:macros,mod}),get(:typespecs,mod)]
+      ["# Module #{inspect mod}",elem(moddoc,1),get({:moduleinfo,{:functions,mod}}),get({:moduleinfo,{:macros,mod}}),get({:typespecs,mod})]
       |> Enum.reject(&is_nil/1) |> Enum.join("\n\n")
     end
   end
-  def get(:fundoc,{mod,fun}) do
+  def get({:fundoc,{mod,fun}}) do
     if fundocs=Code.get_docs(mod, :docs) do
-      doc = for {{f,a},_,_,spec,doc}<-fundocs, f==fun do
-        ["# `#{inspect mod}.#{Macro.to_string({fun,[],spec})}`", get(:funspecs,{mod,{f,a}}), if(doc, do: "## Doc\n\n#{doc}")]
+      doc = for {{f,a},_,type,spec,doc}<-fundocs, f==fun do
+        ["# #{type} `#{inspect mod}.#{Macro.to_string({fun,[],spec})}`", get({:funspecs,{mod,{f,a}}}), if(doc, do: "## Doc\n\n#{doc}")]
         |> Enum.reject(&is_nil/1) |> Enum.join("\n\n")
       end |> Enum.join("\n\n")
       if doc == "", do: nil, else: doc
     end
   end
 
-  def get(:fun_preview,{mod,fun,arity}) when is_binary(mod) do
-    mod = Module.concat([String.rstrip(mod,?.)])
-    get(:fun_preview,{mod,:"#{fun}",String.to_integer(arity)})
-  end
-  def get(:mod_preview,mod) when is_binary(mod), do:
-   get(:mod_preview,Module.concat([mod]))
 
-  def get(:fun_preview,{mod,fun,arity}) do
+  def get({:fun_preview,{mod,fun,arity}}) do
     if fundocs=Code.get_docs(mod,:docs) do
       Enum.find_value(fundocs,fn
         {{f,a},_,_,_,doc} when {f,a}=={fun,arity} and doc != nil-> md_first_line(doc)
@@ -76,7 +94,7 @@ defmodule RPlugin.Doc do
       end)
     end
   end
-  def get(:mod_preview,mod) do
+  def get({:mod_preview,mod}) do
     if moddoc=Code.get_docs(mod,:moduledoc) do
       if doc=elem(moddoc,1), do: md_first_line(doc)
     end
@@ -87,5 +105,10 @@ defmodule RPlugin.Doc do
     |> String.split("\n\n",parts: 2)
     |> hd
     |> String.replace("\n"," ")
+  end
+
+  defp resolve_alias(parts,env) do
+    lambda_alias = Module.concat(parts)
+    env.aliases[lambda_alias] || lambda_alias
   end
 end
