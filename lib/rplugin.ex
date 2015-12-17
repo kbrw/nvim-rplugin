@@ -31,13 +31,14 @@ defmodule RPlugin do
     {:ok,nil,%{state|file_envs: Dict.put(state.file_envs,cur_file,envs)}}
   end
 
-  defcommand elixir_exec(bang,[starts,ends],state), bang: true, range: :default_all do
+  defcommand elixir_exec(bang,[starts,ends],cur_file,state), bang: true, range: :default_all, eval: "expand('%:p:h')" do
+    env = RPlugin.Env.env_for_line(starts,Dict.get(state.file_envs,cur_file,[])) || __ENV__
     {:ok,buffer} = NVim.vim_get_current_buffer
     {:ok,text} = NVim.buffer_get_line_slice(buffer,starts-1,ends-1,true,true)
     tmp_dir = System.tmp_dir || "."
     current_bindings = if bang == 0, do: state.current_bindings, else: []
     bindings = try do
-      {res,bindings} = Code.eval_string(Enum.join(text,"\n"),current_bindings)
+      {res,bindings} = Code.eval_string(Enum.join(text,"\n"),current_bindings, env)
       File.write!("#{tmp_dir}/preview.ex","#{inspect(res,pretty: true, limit: :infinity)}\n\n#{format_bindings bindings}")
       bindings
     catch
