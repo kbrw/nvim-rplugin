@@ -49,12 +49,16 @@ defmodule RPlugin do
     Doc.get(start_query <> end_query) |> to_string
   end
 
-  deffunc elixir_complete(mode,_,cursor,line,state) when mode in ["1",1], eval: "col('.')", eval: "getline('.')" do
+  deffunc elixir_complete(mode,_,cursor,line,_,_,state) when mode in ["1",1], eval: "col('.')", eval: "getline('.')",
+      eval: "exists('g:elixir_docpreview') ? g:elixir_docpreview : 0",
+      eval: "exists('g:elixir_maxmenu') ? g:elixir_maxmenu : 70" do
     cursor = cursor - 1 # because we are in insert mode
     [tomatch] = Regex.run(~r"[\w\.:]*$",String.slice(line,0..cursor-1))
     cursor - String.length(tomatch)
   end
-  deffunc elixir_complete(_,base,_,_,state), eval: "col('.')", eval: "getline('.')" do
+  deffunc elixir_complete(_,base,_,_,preview?,maxmenu,state), eval: "col('.')", eval: "getline('.')",
+      eval: "exists('g:elixir_docpreview') ? g:elixir_docpreview : 0",
+      eval: "exists('g:elixir_maxmenu') ? g:elixir_maxmenu : 70" do
     case (base |> to_char_list |> Enum.reverse |> IEx.Autocomplete.expand) do
       {:no,_,_}-> [base] # no expand
       {:yes,comp,[]}->["#{base}#{comp}"] #simple expand, no choices
@@ -64,12 +68,14 @@ defmodule RPlugin do
           case Regex.run(~r"^(.*)/([0-9]+)$",comp) do # first see if these choices are module or function
             [_,function,arity]-> # it is a function completion
               replace = base<>function
-              if(doc=Doc.get(replace), do: [{"info",doc}], else: [])
-              |> Enum.into(%{"word"=>replace, "abbr"=>comp})
+              menu = Doc.get(:fun_preview,{base,function,arity}) |> to_string |> String.slice(0..maxmenu)
+              if(preview?==1 && (doc=Doc.get(replace)), do: [{"info",doc}], else: [])
+              |> Enum.into(%{"word"=>replace, "abbr"=>comp, "menu"=>menu, "dup"=>1})
             nil-> # it is a module completion
               replace = base<>comp
-              if(doc=Doc.get(replace), do: [{"info",doc}], else: [])
-              |> Enum.into(%{"word"=>replace})
+              menu = Doc.get(:mod_preview,replace) |> to_string |> String.slice(0..maxmenu)
+              if(preview?==1 && (doc=Doc.get(replace)), do: [{"info",doc}], else: [])
+              |> Enum.into(%{"word"=>replace, "menu"=>menu})
           end
         end)
     end

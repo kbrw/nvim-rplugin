@@ -33,32 +33,59 @@ defmodule RPlugin.Doc do
         "## Types\n\n#{type_list}"
     end
   end
+  def get(:funspecs,{mod,{f,a}}) do
+    all_specs = Kernel.Typespec.beam_specs(mod)
+    fun_specs = for {{f0,a0},specs}<-all_specs, {f0,a0}=={f,a}, spec<-specs, do: spec
+    case fun_specs do
+      []->nil
+      specs->
+        spec_lines = specs|>Enum.map(&Kernel.Typespec.spec_to_ast(f,&1))
+                          |>Enum.map(&"    #{Macro.to_string(&1)}")
+                          |>Enum.join("\n")
+        "## Specs\n\n#{spec_lines}"
+    end
+  end
   def get(:moduledoc,mod) do
     if moddoc=Code.get_docs(mod,:moduledoc) do
       ["# Module #{inspect mod}",elem(moddoc,1),get(:moduleinfo,{:functions,mod}),get(:moduleinfo,{:macros,mod}),get(:typespecs,mod)]
       |> Enum.reject(&is_nil/1) |> Enum.join("\n\n")
     end
   end
-  def get(:funspecs,{mod,fun}) do
-    all_specs = Kernel.Typespec.beam_specs(mod)
-    fun_specs = for {{f,a},specs}<-all_specs, f==fun, spec<-specs, do: spec
-    case fun_specs do
-      []->nil
-      specs->
-        spec_lines = specs|>Enum.map(&Kernel.Typespec.spec_to_ast(fun,&1))
-                          |>Enum.map(&"    #{Macro.to_string(&1)}")
-                          |>Enum.join("\n")
-        "## Specs\n\n#{spec_lines}"
-    end
-  end
   def get(:fundoc,{mod,fun}) do
     if fundocs=Code.get_docs(mod, :docs) do
+      doc = for {{f,a},_,_,spec,doc}<-fundocs, f==fun do
+        ["# `#{inspect mod}.#{Macro.to_string({fun,[],spec})}`", get(:funspecs,{mod,{f,a}}), if(doc, do: "## Doc\n\n#{doc}")]
+        |> Enum.reject(&is_nil/1) |> Enum.join("\n\n")
+      end |> Enum.join("\n\n")
+      if doc == "", do: nil, else: doc
+    end
+  end
+
+  def get(:fun_preview,{mod,fun,arity}) when is_binary(mod) do
+    mod = Module.concat([String.rstrip(mod,?.)])
+    get(:fun_preview,{mod,:"#{fun}",String.to_integer(arity)})
+  end
+  def get(:mod_preview,mod) when is_binary(mod), do:
+   get(:mod_preview,Module.concat([mod]))
+
+  def get(:fun_preview,{mod,fun,arity}) do
+    if fundocs=Code.get_docs(mod,:docs) do
       Enum.find_value(fundocs,fn
-        {{afun,arity},_,type,spec,doc} when afun == fun->
-          ["# `#{inspect mod}.#{Macro.to_string({fun,[],spec})}`", get(:funspecs,{mod,fun}), if(doc, do: "## Doc\n\n#{doc}")]
-          |> Enum.reject(&is_nil/1) |> Enum.join("\n\n")
-         _->nil
+        {{f,a},_,_,_,doc} when {f,a}=={fun,arity} and doc != nil-> md_first_line(doc)
+        _->nil
       end)
     end
+  end
+  def get(:mod_preview,mod) do
+    if moddoc=Code.get_docs(mod,:moduledoc) do
+      if doc=elem(moddoc,1), do: md_first_line(doc)
+    end
+  end
+
+  defp md_first_line(markdown) do
+    markdown
+    |> String.split("\n\n",parts: 2)
+    |> hd
+    |> String.replace("\n"," ")
   end
 end
