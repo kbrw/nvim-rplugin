@@ -11,7 +11,8 @@ defmodule RPlugin.Doc do
             end
           [{mod,fun}|_]->get({:fundoc,{mod,fun}})
         end
-      [":"<>erlmod|_rest]->get({:erldoc,erlmod})
+      [":"<>erlmod]->get({:erldoc,erlmod})
+      [":"<>erlmod,erlfun]->get({:erldoc,erlmod,erlfun})
       parts->
         if Enum.all?(parts, &match?(<<c>><>_ when c in ?A..?Z,&1)) do
           mod = resolve_alias(parts,env)
@@ -20,7 +21,7 @@ defmodule RPlugin.Doc do
         else
           mod = resolve_alias(Enum.slice(parts,0..-2),env)
           get(if match?("Elixir."<>_,"#{mod}"), 
-                    do: {:fundoc,{mod, :"#{List.last parts}"}}, else: {:erldoc,mod})
+                    do: {:fundoc,{mod, :"#{List.last parts}"}}, else: {:erldoc,mod,List.last(parts)})
         end
     end
   end
@@ -34,7 +35,16 @@ defmodule RPlugin.Doc do
   end
 
   def get({:erldoc,erlmod}) do
-    :os.cmd('erl -man #{erlmod} | col -b') |> to_string
+    case to_string(:os.cmd('erl -man #{erlmod} | col -b')) do
+      "No manual entry"<>_-> nil
+      doc-> "erlmod/#{doc}"
+    end
+  end
+  def get({:erldoc,erlmod,erlfun}) do
+    case to_string(:os.cmd('erl -man #{erlmod} | col -b')) do
+      "No manual entry"<>_-> nil
+      doc-> "erlfun/#{erlfun}/#{doc}"
+    end
   end
   def get({:moduleinfo,{type,mod}}) when type in [:functions,:macros] do
     case mod.__info__(type) do
