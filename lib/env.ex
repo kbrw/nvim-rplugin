@@ -16,7 +16,7 @@ defmodule RPlugin.Env do
     import Kernel, except: [defmodule: 2]
     import RPlugin.Env.FakeKernel
     res = try do
-      Code.eval_string(code,[],%{__ENV__|module: Elixir,function: nil,line: 1}); :ok
+      Code.eval_string(code,[],%{__ENV__|module: Elixir,function: nil, file: cur_file, line: 1}); :ok
     catch
       :error,%{description: desc, line: line}-> {:error,desc,line}
       type,error-> {:error,inspect({type,error}),
