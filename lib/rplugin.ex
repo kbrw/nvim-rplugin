@@ -86,7 +86,10 @@ defmodule RPlugin do
               if(preview?==1 && (doc=Doc.get({:q_doc,env,replace})), do: [{"info",doc}], else: [])
               |> Enum.into(%{"word"=>replace, "abbr"=>comp, "menu"=>menu, "dup"=>1})
             nil-> # it is a module completion
-              replace = base<>comp
+              replace = case comp do
+                <<c>><>_ when c in ?a..?z-> ":#{comp}" # erlang module comp
+                _ -> base<>comp
+              end
               menu = Doc.get({:q_mod_preview,env,replace}) |> to_string |> String.slice(0..maxmenu)
               if(preview?==1 && (doc=Doc.get({:q_doc,env,replace})), do: [{"info",doc}], else: [])
               |> Enum.into(%{"word"=>replace, "menu"=>menu})
