@@ -41,10 +41,10 @@ defmodule RPlugin do
     {:ok,nil,spawn_build(state,fn-> RPlugin.Mix.mix_load(file_dir) end)}
   end
 
-  defcommand elixir_buildenv(ends,cur_file,state), eval: "line('$')", eval: "expand('%:p:h')", async: true do
-    {:ok,buffer} = NVim.vim_get_current_buffer
-    {:ok,text} = NVim.buffer_get_line_slice(buffer,0,ends-1,true,true)
+  defcommand elixir_quick_build(ends,cur_file,state), eval: "line('$')", eval: "expand('%:p:h')", async: true do
     {:ok,nil,spawn_build(state, fn->
+      {:ok,buffer} = NVim.vim_get_current_buffer
+      {:ok,text} = NVim.buffer_get_line_slice(buffer,0,ends-1,true,true)
       GenServer.cast __MODULE__, {:new_envs,cur_file,RPlugin.Env.env_map(Enum.join(text,"\n"),cur_file)}
     end)}
   end
