@@ -23,8 +23,9 @@ defmodule RPlugin.Env do
                       Enum.find_value(System.stacktrace,fn {_,_,_,metas}->metas[:line] end)}
     end
     if match?({:ok,1},NVim.vim_get_var("elixir_showerror")) do
+      NVim.vim_command("for m in getmatches() | call matchdelete(m.id) | endfor")
       case res do
-        :ok-> NVim.vim_command("for m in getmatches() | call matchdelete(m.id) | endfor")
+        :ok-> :ok
         {:error,desc,nil}-> Logger.error(desc)
         {:error,desc,line}->
           Logger.warn("#{desc} (L#{line})")
