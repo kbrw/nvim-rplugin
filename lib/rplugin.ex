@@ -7,10 +7,26 @@ defmodule RPlugin do
     bindings |> Enum.map(fn {k,v}->"#{k} = #{inspect(v,pretty: true, limit: :infinity)}" end) |> Enum.join("\n")
   end
 
+  # - `current_bindings` is the state of bindings of ElixirExec command
+  # - `file_envs` is the map nb_line->envs used to contextualize doc and completion
+  # - `build_pid` current async build process to avoids concurrent file builds
   def init(_) do
-    spawn fn-> RPlugin.Mix.mix_load(System.cwd) end
-    {:ok,%{current_bindings: [], file_envs: HashDict.new}}
+    Process.flag(:trap_exit, true)
+    state = %{current_bindings: [], file_envs: HashDict.new, build_pid: nil}
+    {:ok,spawn_build(state, fn-> RPlugin.Mix.mix_load(System.cwd) end)}
   end
+
+  def handle_cast({:new_envs,cur_file,envs},state), do:
+    {:noreply,%{state|file_envs: Dict.put(state.file_envs,cur_file,envs)}}
+
+  # do not spawn anything if a build pid is already set, else spawn and set it
+  defp spawn_build(%{build_pid: nil}=state,fun), do:
+    %{state| build_pid: spawn_link(fun)}
+  defp spawn_build(%{build_pid: pid}=state,_) when is_pid(pid), do:
+    state
+  # when the build process ends (bad or normal), free the state to allow later build
+  def handle_info({:EXIT,pid,_}, %{build_pid: pid}=state), do:
+    {:noreply, %{state| build_pid: nil}}
 
   defcommand mix_start(app,_), async: true do
     Application.ensure_all_started(app && :"#{app}" || Mix.Project.config[:app])
@@ -20,15 +36,17 @@ defmodule RPlugin do
     Application.stop(app && :"#{app}" || Mix.Project.config[:app])
   end
 
+
   defcommand mix_load(file_dir,state), eval: "expand('%:p:h')", async: true do
-    RPlugin.Mix.mix_load(file_dir)
+    {:ok,nil,spawn_build(state,fn-> RPlugin.Mix.mix_load(file_dir) end)}
   end
 
   defcommand elixir_buildenv(ends,cur_file,state), eval: "line('$')", eval: "expand('%:p:h')", async: true do
     {:ok,buffer} = NVim.vim_get_current_buffer
     {:ok,text} = NVim.buffer_get_line_slice(buffer,0,ends-1,true,true)
-    envs = RPlugin.Env.env_map(Enum.join(text,"\n"),cur_file)
-    {:ok,nil,%{state|file_envs: Dict.put(state.file_envs,cur_file,envs)}}
+    {:ok,nil,spawn_build(state, fn->
+      GenServer.cast __MODULE__, {:new_envs,cur_file,RPlugin.Env.env_map(Enum.join(text,"\n"),cur_file)}
+    end)}
   end
 
   defcommand elixir_exec(bang,[starts,ends],cur_file,state), bang: true, range: :default_all, eval: "expand('%:p:h')" do
