@@ -13,12 +13,12 @@ thanks @archSeer for the gif !
 - Bindings are kept along interpretations
 - You can reset binding using the bang: `:ElixirExec!`
 - Add a function `ExdocGetBody` to get documentation under cursor
-- Add a command `:ElixirBuildenv` which parse the current buffer to
+- Add a command `:ElixirQuickBuild` which parse the current buffer to
   maintain a map of line-> `__ENV__`, once this command is executed,
   then the completion and the documentation function will understand
   the context: aliases, imports, use, etc., this function compile the
   file and use your CPU, use automd on vim to execute it when you want.
-- The `:ElixirBuildenv` background compilation can trigger error
+- The `:ElixirQuickBuild` background compilation can trigger error
   highlighting and log into vim to help your debugging.
 
 # Installation
@@ -46,4 +46,4 @@ Four possible configurations:
   default to 0.
 - `g:elixir_showerror` is a boolean (int 0 or 1) to choose if you
   want to highlight the errorneous line and log the error into vim
-  during `:ElixirBuildenv` compilation.
+  during `:ElixirQuickBuild` compilation.
