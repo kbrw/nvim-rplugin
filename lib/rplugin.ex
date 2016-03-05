@@ -36,6 +36,7 @@ defmodule RPlugin do
   # when the build process ends (bad or normal), free the state to allow later build
   def handle_info({:EXIT,pid,_}, %{build_pid: pid}=state), do:
     {:noreply, %{state| build_pid: nil}}
+  def handle_info(_, state), do: {:noreply, state}
 
   defcommand mix_start(app,_), async: true do
     Application.ensure_all_started(app && :"#{app}" || Mix.Project.config[:app])
