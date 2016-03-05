@@ -5,6 +5,7 @@ defmodule RPlugin do
 
   defmodule Sup do
     def start_link, do: Supervisor.start_link([
+      supervisor(Task.Supervisor, [[name: RPlugin.TaskSup]]),
       worker(RPlugin,[%{}]),
       worker(RPlugin.Doc.Cache,[])
     ], strategy: :one_for_one)
@@ -87,14 +88,14 @@ defmodule RPlugin do
   end
 
   deffunc elixir_complete(mode,_,cursor,line,_,_,_,_,_,minlen,state) when mode in ["1",1], eval: "col('.')", eval: "getline('.')",
-      eval: "get(g:,'elixir_docpreview',0)", eval: "get(g:,'elixir_maxmenu',70)", eval: "get(g:,'elixir_maxpreviews',100)",
+      eval: "get(g:,'elixir_docpreview',0)", eval: "get(g:,'elixir_maxmenu',70)", eval: "get(g:,'elixir_maxpreviews',150)",
       eval: "expand('%:p:h')", eval: "line('.')", eval: "get(g:,'elixir_comp_minlen',0)" do
     cursor = cursor - 1 # because we are in insert mode
     [tomatch] = Regex.run(~r"[\w\.:]*$",String.slice(line,0..cursor-1))
     if String.length(tomatch) < minlen, do: -3, else: cursor - String.length(tomatch)
   end
   deffunc elixir_complete(_,base,_,_,docpreview,maxmenu,maxpreviews,cur_file,numline,minlen,state), eval: "col('.')", eval: "getline('.')",
-      eval: "get(g:,'elixir_docpreview',0)", eval: "get(g:,'elixir_maxmenu',70)", eval: "get(g:,'elixir_maxpreviews',100)",
+      eval: "get(g:,'elixir_docpreview',0)", eval: "get(g:,'elixir_maxmenu',70)", eval: "get(g:,'elixir_maxpreviews',150)",
       eval: "expand('%:p:h')", eval: "line('.')", eval: "get(g:,'elixir_comp_minlen',0)" do
     if env=RPlugin.Env.env_for_line(numline,Dict.get(state.file_envs,cur_file,[])), do:
       Application.put_env(:iex, :autocomplete_server, %{current_env: env})
@@ -108,26 +109,33 @@ defmodule RPlugin do
         mini_preview? = alts_count < maxpreviews
 
         alts
-        |> Stream.map(fn comp->
-          {base,comp} = {String.replace(base,~r"[^.]*$",""), to_string(comp)}
-          case Regex.run(~r"^(.*)/([0-9]+)$",comp) do # first see if these choices are module or function
-            [_,function,arity]-> # it is a function completion
-              replace = base<>function
-              menu_field = if !mini_preview?, do: [], 
-                else: [{"menu",Doc.get({:q_fun_preview,env,{base,function,arity}}) |> to_string |> String.slice(0..maxmenu)}]
-              info_field = if(preview? && (doc=Doc.get({:q_doc,env,replace})), do: [{"info",doc}], else: [])
-              (menu_field++info_field) |> Enum.into(%{"word"=>replace, "abbr"=>comp, "dup"=>1})
-            nil-> # it is a module completion
-              case comp do
-                <<c>><>_ when c in ?a..?z-> %{"word"=>":#{comp}"} # erlang module comp
-                _ -> replace = base<>comp
+        |> Enum.chunk(10,10,[])
+        |> Enum.map(fn chunk->
+          Task.Supervisor.async_nolink(RPlugin.TaskSup,fn->
+            Enum.map(chunk,fn comp->
+              {base,comp} = {String.replace(base,~r"[^.]*$",""), to_string(comp)}
+              case Regex.run(~r"^(.*)/([0-9]+)$",comp) do # first see if these choices are module or function
+                [_,function,arity]-> # it is a function completion
+                  replace = base<>function
                   menu_field = if !mini_preview?, do: [], 
-                    else: [{"menu",Doc.get({:q_mod_preview,env,replace}) |> to_string |> String.slice(0..maxmenu)}]
+                    else: [{"menu",Doc.get({:q_fun_preview,env,{base,function,arity}}) |> to_string |> String.slice(0..maxmenu)}]
                   info_field = if(preview? && (doc=Doc.get({:q_doc,env,replace})), do: [{"info",doc}], else: [])
-                  (menu_field++info_field) |> Enum.into(%{"word"=>replace})
+                  (menu_field++info_field) |> Enum.into(%{"word"=>replace, "abbr"=>comp, "dup"=>1})
+                nil-> # it is a module completion
+                  case comp do
+                    <<c>><>_ when c in ?a..?z-> %{"word"=>":#{comp}"} # erlang module comp
+                    _ -> replace = base<>comp
+                      menu_field = if !mini_preview?, do: [], 
+                        else: [{"menu",Doc.get({:q_mod_preview,env,replace}) |> to_string |> String.slice(0..maxmenu)}]
+                      info_field = if(preview? && (doc=Doc.get({:q_doc,env,replace})), do: [{"info",doc}], else: [])
+                      (menu_field++info_field) |> Enum.into(%{"word"=>replace})
+                  end
               end
-          end
+            end)
+          end)
         end)
+        |> Enum.map(&Task.await/1)
+        |> Stream.concat
         |> Enum.sort_by(fn
           %{"abbr"=> <<c>> <>_=w} when c in ?A..?Z-> {0,w}
           %{"abbr"=> w}-> {1,w}
