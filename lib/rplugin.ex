@@ -3,6 +3,14 @@ defmodule RPlugin do
   require Logger
   alias RPlugin.Doc
 
+  defmodule Sup do
+    def start_link, do: Supervisor.start_link([
+      worker(RPlugin,[%{}]),
+      worker(RPlugin.Doc.Cache,[])
+    ], strategy: :one_for_one)
+  end
+  def child_spec, do: supervisor(Sup,[])
+
   defp format_bindings(bindings) do
     bindings |> Enum.map(fn {k,v}->"#{k} = #{inspect(v,pretty: true, limit: :infinity)}" end) |> Enum.join("\n")
   end

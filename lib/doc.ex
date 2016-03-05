@@ -1,4 +1,31 @@
+defmodule RPlugin.Doc.Cache do
+  use GenServer
+  def get_or(key,fun), do: GenServer.call(__MODULE__,{:get_or,key,fun})
+  defmacro cached({{:.,_,modfun},_,args}=call) do quote do
+    RPlugin.Doc.Cache.get_or({unquote(modfun),unquote(args)}, fn-> unquote(call) end)
+  end end
+
+  def start_link, do: GenServer.start_link(__MODULE__,[], name: __MODULE__)
+  def init([]), do: {:ok,:ets.new(:doccache,[:set])}
+  def handle_cast({:cache,key,res},tid) do
+    :ets.insert(tid,{key,res})
+    {:noreply,tid}
+  end
+  def handle_call({:get_or,key,fun},repto,tid) do
+    case :ets.lookup(tid, key) do
+      [{_,res}]->{:reply,res,tid}
+      _ -> spawn fn-> 
+        res = fun.()
+        GenServer.cast(__MODULE__,{:cache,key,res})
+        GenServer.reply(repto,res)
+      end; {:noreply,tid}
+    end
+  end
+end
+
 defmodule RPlugin.Doc do
+  import RPlugin.Doc.Cache, only: :macros
+
   def get({:q_doc,env,query}) do
     case String.split(query,".") do
       [<<c>><>_]=q when c in ?a..?z->
@@ -79,13 +106,13 @@ defmodule RPlugin.Doc do
     end
   end
   def get({:moduledoc,mod}) do
-    if moddoc=Code.get_docs(mod,:moduledoc) do
+    if moddoc=cached(Code.get_docs(mod,:moduledoc)) do
       ["# Module #{inspect mod}",elem(moddoc,1),get({:moduleinfo,{:functions,mod}}),get({:moduleinfo,{:macros,mod}}),get({:typespecs,mod})]
       |> Enum.reject(&is_nil/1) |> Enum.join("\n\n")
     end
   end
   def get({:fundoc,{mod,fun}}) do
-    if fundocs=Code.get_docs(mod, :docs) do
+    if fundocs=cached(Code.get_docs(mod, :docs)) do
       doc = for {{f,a},_,type,spec,doc}<-fundocs, f==fun do
         ["# #{type} `#{inspect mod}.#{Macro.to_string({fun,[],spec})}`", get({:funspecs,{mod,{f,a}}}), if(doc, do: "## Doc\n\n#{doc}")]
         |> Enum.reject(&is_nil/1) |> Enum.join("\n\n")
@@ -94,9 +121,8 @@ defmodule RPlugin.Doc do
     end
   end
 
-
   def get({:fun_preview,{mod,fun,arity}}) do
-    if fundocs=Code.get_docs(mod,:docs) do
+    if fundocs=cached(Code.get_docs(mod,:docs)) do
       Enum.find_value(fundocs,fn
         {{f,a},_,_,_,doc} when {f,a}=={fun,arity} and doc != nil-> md_first_line(doc)
         _->nil
@@ -104,7 +130,7 @@ defmodule RPlugin.Doc do
     end
   end
   def get({:mod_preview,mod}) do
-    if moddoc=Code.get_docs(mod,:moduledoc) do
+    if moddoc=cached(Code.get_docs(mod,:moduledoc)) do
       if doc=elem(moddoc,1), do: md_first_line(doc)
     end
   end
