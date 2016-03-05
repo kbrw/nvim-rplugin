@@ -78,16 +78,16 @@ defmodule RPlugin do
     Doc.get({:q_doc,env,start_query <> end_query}) |> to_string
   end
 
-  deffunc elixir_complete(mode,_,cursor,line,_,_,_,_,state) when mode in ["1",1], eval: "col('.')", eval: "getline('.')",
+  deffunc elixir_complete(mode,_,cursor,line,_,_,_,_,minlen,state) when mode in ["1",1], eval: "col('.')", eval: "getline('.')",
       eval: "get(g:,'elixir_docpreview',0)", eval: "get(g:,'elixir_maxmenu',70)", 
-      eval: "expand('%:p:h')", eval: "line('.')" do
+      eval: "expand('%:p:h')", eval: "line('.')", eval: "get(g:,'elixir_comp_minlen',0)" do
     cursor = cursor - 1 # because we are in insert mode
     [tomatch] = Regex.run(~r"[\w\.:]*$",String.slice(line,0..cursor-1))
-    cursor - String.length(tomatch)
+    if String.length(tomatch) < minlen, do: -3, else: cursor - String.length(tomatch)
   end
-  deffunc elixir_complete(_,base,_,_,preview?,maxmenu,cur_file,numline,state), eval: "col('.')", eval: "getline('.')",
+  deffunc elixir_complete(_,base,_,_,preview?,maxmenu,cur_file,numline,minlen,state), eval: "col('.')", eval: "getline('.')",
       eval: "get(g:,'elixir_docpreview',0)", eval: "get(g:,'elixir_maxmenu',70)", 
-      eval: "expand('%:p:h')", eval: "line('.')" do
+      eval: "expand('%:p:h')", eval: "line('.')", eval: "get(g:,'elixir_comp_minlen',0)" do
     if env=RPlugin.Env.env_for_line(numline,Dict.get(state.file_envs,cur_file,[])), do:
       Application.put_env(:iex, :autocomplete_server, %{current_env: env})
     env = env || __ENV__
