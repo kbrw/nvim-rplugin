@@ -120,7 +120,7 @@ defmodule RPlugin do
                   replace = base<>function
                   menu_field = if !mini_preview?, do: [], 
                     else: [{"menu",Doc.get({:q_fun_preview,env,{base,function,arity}}) |> to_string |> String.slice(0..maxmenu)}]
-                  info_field = if(preview? && (doc=Doc.get({:q_doc,env,replace})), do: [{"info",doc}], else: [])
+                  info_field = case preview? && Doc.get({:q_doc,env,replace}) do nil-> []; doc-> [{"info",doc}] end
                   (menu_field++info_field) |> Enum.into(%{"word"=>replace, "abbr"=>comp, "dup"=>1})
                 nil-> # it is a module completion
                   case comp do
@@ -128,7 +128,7 @@ defmodule RPlugin do
                     _ -> replace = base<>comp
                       menu_field = if !mini_preview?, do: [], 
                         else: [{"menu",Doc.get({:q_mod_preview,env,replace}) |> to_string |> String.slice(0..maxmenu)}]
-                      info_field = if(preview? && (doc=Doc.get({:q_doc,env,replace})), do: [{"info",doc}], else: [])
+                      info_field = case preview? && Doc.get({:q_doc,env,replace}) do nil-> []; doc-> [{"info",doc}] end
                       (menu_field++info_field) |> Enum.into(%{"word"=>replace})
                   end
               end
