@@ -84,54 +84,66 @@ defmodule RPlugin.Doc do
     end
   end
   def get({:typespecs,mod}) do
-    case Kernel.Typespec.beam_types(mod) do
-      []->nil
-      types->
+    case Code.Typespec.fetch_types(mod) do
+      {:ok,types} when length(types) > 0->
         type_list = for {_,t}<-types do
-          "- `#{Macro.to_string(Kernel.Typespec.type_to_ast(t))}`"
+          "- `#{Macro.to_string(Code.Typespec.type_to_quoted(t))}`"
         end |> Enum.join("\n")
         "## Types\n\n#{type_list}"
+      _->nil
     end
   end
   def get({:funspecs,{mod,{f,a}}}) do
-    all_specs = Kernel.Typespec.beam_specs(mod)
-    fun_specs = for {{f0,a0},specs}<-all_specs, {f0,a0}=={f,a}, spec<-specs, do: spec
-    case fun_specs do
-      []->nil
-      specs->
-        spec_lines = specs|>Enum.map(&Kernel.Typespec.spec_to_ast(f,&1))
-                          |>Enum.map(&"    #{Macro.to_string(&1)}")
-                          |>Enum.join("\n")
-        "## Specs\n\n#{spec_lines}"
+    case Code.Typespec.fetch_specs(mod) do
+      {:ok,all_specs}->
+        fun_specs = for {{f0,a0},specs}<-all_specs, {f0,a0}=={f,a}, spec<-specs, do: spec
+        case fun_specs do
+          []->nil
+          specs->
+            spec_lines = specs|>Enum.map(&Code.Typespec.spec_to_quoted(f,&1))
+                              |>Enum.map(&"    #{Macro.to_string(&1)}")
+                              |>Enum.join("\n")
+            "## Specs\n\n#{spec_lines}"
+        end
+      _-> nil
     end
   end
   def get({:moduledoc,mod}) do
-    if moddoc=cached(Code.get_docs(mod,:moduledoc)) do
-      ["# Module #{inspect mod}",elem(moddoc,1),get({:moduleinfo,{:functions,mod}}),get({:moduleinfo,{:macros,mod}}),get({:typespecs,mod})]
-      |> Enum.reject(&is_nil/1) |> Enum.join("\n\n")
+    case cached(Code.fetch_docs(mod)) do
+      {:docs_v1, _, _, _, %{"en"=>doc}, _, _}->
+        ["# Module #{inspect mod}",doc,get({:moduleinfo,{:functions,mod}}),get({:moduleinfo,{:macros,mod}}),get({:typespecs,mod})]
+         |> Enum.reject(&is_nil/1) |> Enum.join("\n\n")
+      _-> nil
     end
   end
   def get({:fundoc,{mod,fun}}) do
-    if fundocs=cached(Code.get_docs(mod, :docs)) do
-      doc = for {{f,a},_,type,spec,doc}<-fundocs, f==fun do
-        ["# #{type} `#{inspect mod}.#{Macro.to_string({fun,[],spec})}`", get({:funspecs,{mod,{f,a}}}), if(doc, do: "## Doc\n\n#{doc}")]
-        |> Enum.reject(&is_nil/1) |> Enum.join("\n\n")
-      end |> Enum.join("\n\n")
-      if doc == "", do: nil, else: doc
+    case cached(Code.fetch_docs(mod)) do
+      {:docs_v1, _, _, _, _, _, fundocs}->
+        doc = for {{type,f,a},_,specs,fundoc,_}<-fundocs, f==fun do
+          ["# #{type} #{specs |> Enum.map(&"#{inspect mod}.#{&1}") |> Enum.join(" ")}", 
+            get({:funspecs,{mod,{f,a}}}), 
+            case fundoc do %{"en"=>doc}-> "## Doc\n\n#{doc}"; _-> nil end ]
+          |> Enum.reject(&is_nil/1) |> Enum.join("\n\n")
+        end |> Enum.join("\n\n")
+        if doc != "", do: doc
+      _-> nil
     end
   end
 
   def get({:fun_preview,{mod,fun,arity}}) do
-    if fundocs=cached(Code.get_docs(mod,:docs)) do
-      Enum.find_value(fundocs,fn
-        {{f,a},_,_,_,doc} when {f,a}=={fun,arity} and doc != nil-> md_first_line(doc)
-        _->nil
-      end)
+    case cached(Code.fetch_docs(mod)) do
+      {:docs_v1, _, _, _, _, _, fundocs}->
+        Enum.find_value(fundocs,fn
+          {{_,f,a},_,_,%{"en"=>doc},_} when {f,a}=={fun,arity}-> md_first_line(doc)
+          _->nil
+        end)
+      _-> nil
     end
   end
   def get({:mod_preview,mod}) do
-    if moddoc=cached(Code.get_docs(mod,:moduledoc)) do
-      if doc=elem(moddoc,1), do: md_first_line(doc)
+    case cached(Code.fetch_docs(mod)) do
+      {:docs_v1, _, _, _, %{"en"=>doc}, _, _}-> md_first_line(doc)
+      _-> nil
     end
   end
 
