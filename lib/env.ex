@@ -4,7 +4,7 @@ defmodule RPlugin.Env.FakeKernel do
     quote do
       Kernel.defmodule unquote(name) do 
         unquote(block) 
-        send(unquote(self),{{__ENV__.line,unquote(lastline) || __ENV__.line},__ENV__})
+        send(unquote(self()),{{__ENV__.line,unquote(lastline) || __ENV__.line},__ENV__})
       end
     end
   end
